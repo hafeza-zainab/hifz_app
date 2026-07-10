@@ -1,0 +1,33 @@
+.side-panel { background: #FFFFFF; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #E8DCC8; height: fit-content; overflow: hidden; }
+.side-panel-empty { padding: 40px 20px; color: #8B7355; font-style: italic; text-align: center; border-radius: 12px; background: #FFFFFF; border: 1px dashed #E8DCC8; }
+.panel-header { background: #1B4332; color: #F5F0E8; padding: 15px 20px; font-weight: 700; font-size: 16px; border-radius: 12px 12px 0 0; }
+.panel-body { padding: 20px; }
+.tip-context { background: #FBF0D9; border-left: 4px solid #C9A84C; padding: 15px; border-radius: 4px; margin-bottom: 10px; }
+.tip-context strong { color: #1B4332; display: block; margin-bottom: 5px;}
+.highlight-mode { margin: 0; color: #8B7355; font-size: 13px; }
+.highlight-mode span { color: #1B4332; font-weight: 700; }
+.tips-list h4 { margin-bottom: 10px; color: #3D2B1F; font-size: 15px; }
+.tips-list ul { padding-left: 20px; line-height: 1.8; color: #3D2B1F; font-size: 14px; }
+.tips-list li { margin-bottom: 8px; }
+.context-container { border: 1px solid #E8DCC8; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background: #F5F0E8; }
+.context-ayah { padding: 15px; border-bottom: 1px solid #E8DCC8; }
+.context-ayah:last-child { border-bottom: none; }
+.context-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #8B7355; margin-bottom: 8px; letter-spacing: 0.5px; }
+.arabic-text-sm { font-size: 24px; font-family: 'Amiri', serif; line-height: 2; color: #3D2B1F; text-align: right; }
+.context-ayah.prev .arabic-text-sm, .context-ayah.next .arabic-text-sm { color: #8B7355; }
+
+/* Selected Ayah Styling */
+.context-ayah.main { background: #FFFFFF; border-left: 4px solid #1B4332; border-right: 4px solid #1B4332; margin: 0 -15px; padding: 15px 19px; }
+.context-ayah.main .arabic-text-sm { font-size: 28.8px; color: #1B4332; font-weight: bold; }
+
+.loading-text { text-align: center; padding: 20px; color: #8B7355; font-size: 13px; font-style: italic; }
+.similarity-page-wrapper { max-width: 1200px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 25px; }
+.similarity-main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 25px; align-items: start; }
+.similarity-left-col { display: flex; flex-direction: column; gap: 20px; }
+.similarity-right-col { position: sticky; top: 90px; }
+.no-tips-text {
+    font-size: 13px;
+    color: #8B7355;
+    font-style: italic;
+    margin: 0;
+}
