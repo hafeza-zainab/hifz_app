@@ -1,0 +1,82 @@
+/* C:\quran-similarity-app\frontend\src\App.css */
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --color-deep-green: #1B4332;
+    --color-forest-green: #2D6A4F;
+    --color-mint-green: #52B788;
+    --color-islamic-gold: #C9A84C;
+    --color-light-gold: #E8C86A;
+    --color-cream: #F5F0E8;
+    --color-warm-sand: #E8DCC8;
+    --color-warm-brown: #8B7355;
+    --color-body-text: #3D2B1F;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--color-cream);
+    color: var(--color-body-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+.app-layout { min-height: 100vh; display: flex; flex-direction: column; }
+.app-content { flex: 1; background: var(--color-cream); }
+
+.home-dashboard-container { max-width: 1200px; margin: 0 auto; padding: 30px; }
+
+.welcome-banner {
+    background: var(--color-cream);
+    padding: 30px 40px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border-left: 6px solid var(--color-islamic-gold);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    border: 1px solid var(--color-warm-sand);
+    border-left: 6px solid var(--color-islamic-gold);
+}
+.welcome-banner h1 { color: var(--color-deep-green); margin-bottom: 8px; }
+.welcome-banner p { color: var(--color-warm-brown); font-size: 16px; }
+
+/* Fix #7: unified grid for 4 cards — removed the conflicting repeat(2,1fr) */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 25px;
+}
+
+/* Layout Grid for Similarity Page */
+.dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 25px;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 25px;
+    align-items: start;
+}
+.main-content { display: flex; flex-direction: column; gap: 20px; }
+.widget-panel { position: sticky; top: 95px; }
+
+@media (max-width: 1024px) {
+    .dashboard-container { grid-template-columns: 1fr; }
+    .widget-panel { position: static; }
+    /* Fix #7 responsive: collapse to 2 cols on tablet */
+    .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* Toast fade-in animation (used by DiaryPage inline toasts) */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-warm-sand); }
+::-webkit-scrollbar-thumb { background: var(--color-warm-brown); border-radius: 3px; }
