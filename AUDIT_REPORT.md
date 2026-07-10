@@ -199,4 +199,128 @@ backend/modules/coach/
 
 ---
 
-*Audit continues with modules 2–10 below. See section 11 for cross-cutting analysis.*
+## 2. Backend — modules/similarity (Mutashabihat / Similar Verses)
+
+### Overview
+The similarity module finds structurally similar Quranic verses and allows users to save/edit memory tips. Comparatively clean architecture with well-separated concerns (controller, model, service, repository).
+
+### Dead Files
+- None detected.
+
+### Dead Code
+
+#### Within `similarity.controller.js`
+- **Line 11–14:** Helper function `strengthLabel()` — **used only once** (line 46). Trivial logic (score comparison). Could be inlined or moved to a utility constants file if reused elsewhere. **Priority:** Minor.
+- **No console.log spam** — Unlike coach module, this is clean.
+
+#### Within `similarity.model.js` (File)
+- **Lines 1–51:** This entire file exists but is **superseded by `similarity.repository.js`**. The controller imports from repository, not from model. This is a legacy leftover from refactoring. **Action:** Delete `similarity.model.js`.
+
+### UI Consistency
+*Not applicable to backend module.*
+
+### Architecture
+
+#### Current Structure
+```
+backend/modules/similarity/
+├── similarity.routes.js           (Routes, 16 lines)
+├── similarity.controller.js       (Controller, 108 lines)
+├── wizard.routes.js               (Wizard routes, 14 lines)
+├── wizard.controller.js           (Wizard controller, 80 lines)
+├── filter.service.js              (Filter logic, 32 lines)
+├── similarity.model.js            (DEAD: superseded by repository)
+└── (formerly similarity.model.js, now split into repository.js)
+
+backend/repositories/
+└── similarity.repository.js       (Repository, 132 lines)
+```
+
+#### Observations
+
+**1. Good Separation of Concerns**
+- Routes delegate to controllers (clean)
+- Controllers delegate to repositories & services (clean)
+- Business logic in `filter.service.js` is isolated
+- No circular dependencies detected
+
+**2. Bidirectional Pair Storage**
+- Similarity pairs are stored both directions (A→B and B→A) for fast lookup
+- When tips are updated, both rows must stay in sync
+- **Issue:** Sync logic is duplicated across two functions:
+  - `updateTipsById()` (lines 40–56): fetches pair, then updates reverse
+  - `updateTipsByPair()` (lines 68–80): updates both directions directly
+  - **Redundancy:** If called with ID, requires extra DB query to find coordinates. If called with coordinates, skips the lookup. Inconsistent API.
+
+**3. Placeholder Similarity Score**
+- **Line 102** in `similarity.repository.js`: `const mutashabihaScore = 0.5;` — hardcoded placeholder
+- Comment says "should use actual similarity calculation"
+- This is called when creating a new pair via wizard (lines 100–130)
+- **Issue:** If wizard saves a new pair (currently unused in production, but route exists), the similarity score is always 0.5. This breaks the UI's score-based highlighting (similarity.controller.js:45).
+
+**4. Data Contract: Bidirectional Lookup**
+- `getPairByCoordinates()` (lines 86–94) checks both directions: `(ss:sa → ts:ta) OR (ts:ta → ss:sa)`
+- This works but is inflexible. If schema changes (e.g., storing only min-surah pairs), this needs rewrite.
+- **Suggestion:** Normalize pairs to always store min(surah) first (like scheduler's dedup approach might benefit from).
+
+### Data / Control Flow
+
+#### Similarity Search Flow
+```
+GET /api/similarity?surah=2&ayah=255&marhala=in-progress
+    ↓
+similarity.controller.getSimilarities()
+    ├─ ayahRepo.getAyah(surah, ayah)             [fetch source]
+    ├─ similarityRepo.getSimilarities(surah, ayah) [fetch matches]
+    ├─ JSON.parse(tips) for each match
+    ├─ applyFilters(results, marhala, juzList, page)
+    │   └─ filter.service.applyFilters() [applied filters]
+    └─ Add highlight_mode + strength_label
+    ↓
+Response: { source, results: [...] }
+```
+
+**Data Shape Mismatch Risk:** Low. The result shape is consistent.
+
+#### Tip Update Flow
+```
+PATCH /api/similarity/by-pair/tips
+  Body: { source_surah, source_ayah, target_surah, target_ayah, tips: [...] }
+    ↓
+similarity.controller.updateTipsByPair()
+    ├─ validateInput()
+    ├─ sanitiseTips(tips)  [trim, max 500 chars, max 20 entries]
+    └─ similarityRepo.updateTipsByPair(ss, sa, ts, ta, cleanTips)
+        ├─ UPDATE similarities WHERE (ss:sa → ts:ta) [forward]
+        └─ UPDATE similarities WHERE (ts:ta → ss:sa) [backward]
+    ↓
+Response: { tips: cleanTips }
+```
+
+**Note:** Tips sanitization is solid (max length, max count, trim whitespace).
+
+### Duplication
+
+#### Bidirectional Update Logic
+- **`similarity.model.js:17–32`** vs **`similarity.repository.js:40–56`** — Nearly identical `updateTips()` implementations. Both exist but only repository is used.
+- **`similarity.model.js:35–49`** vs **`similarity.repository.js:68–80`** — Nearly identical `updateTipsByPair()` implementations.
+- **Action:** Delete the model file (it's dead).
+
+#### Strength Label Logic
+- `similarity.controller.js:11–14` implements score-to-label mapping (High/Medium/Low)
+- Same logic likely exists in frontend (to be verified). Should be centralized in a shared constants file.
+
+### Severity Summary
+
+| Finding | Severity | Impact |
+|---------|----------|--------|
+| Dead file: `similarity.model.js` superseded by repository | **Minor** | Code duplication, unused file |
+| Placeholder similarity score (0.5) for new pairs | **Moderate** | Feature incomplete, UI broken for manual pairs |
+| Bidirectional update logic inconsistency | **Minor** | API confusion, slight coupling |
+| `strengthLabel()` used once; trivial | **Minor** | Candidate for inlining or deletion |
+| None of the critical/architectural issues from coach module | **✓** | Well-structured module |
+
+---
+
+*Audit continues with module 3 (Backend — modules/diary) in next section.*
+
