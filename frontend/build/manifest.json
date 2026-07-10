@@ -1,0 +1,10 @@
+{
+  "short_name": "Ikhtebar",
+  "name": "Ikhtebar",
+  "start_url": ".",
+  "display": "standalone",
+  "theme": "#004D40",
+  "background_color": "#ffffff",
+  "icons": [],
+  "fallback_icon": "/favicon.ico"
+}
