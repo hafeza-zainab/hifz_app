@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend API for Quran Similarity Learning Web App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup": "node scripts/maintenance/setup.js",
+    "init-db": "npm run setup",
+    "import:similarities": "node scripts/import/importSimilarities.js",
+    "check:db": "node scripts/debug/checkDatabase.js",
+    "check:streak": "node scripts/debug/checkStreakData.js"
+  },
+  "keywords": ["quran", "similarity", "learning"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.0",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
