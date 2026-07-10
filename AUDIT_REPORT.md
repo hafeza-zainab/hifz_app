@@ -21,33 +21,36 @@
 - [10. Frontend — remaining features](#10-frontend--remaining-features)
 - [11. Cross-cutting issues & proposed architecture](#11-cross-cutting-issues--proposed-architecture)
 
+*(Sections 1 & 2 have been completed. Module 3 below.)*
+
 ---
 
-## 1. Backend — modules/coach (Scheduler/Time Management)
+## 3. Backend — modules/diary (Hifz Diary Logging & Streak System)
 
 ### Overview
-The coach module handles time management wizards, flashcard creation/management, and sensory profile assessment. It's the most complex and historically bug-prone area.
+The diary module manages user progress logging (5 entry types: MURAJAH, TASMEE, IKHTEBAR, JADEED, JUZ HALI), streak calculation, and heatmap aggregation for page strength. It feeds data into the scheduler. Well-organized with clear separation into entry-type sub-controllers and shared repositories.
 
 ### Dead Files
-- **`backend/cleanup-duplicate-events.js`** — **DEAD**: v1 cleanup script for duplicate scheduler events; superseded by `cleanup-duplicate-events-v2.js`. Not imported anywhere. Called manually as a one-time script. **Recommendation:** Keep but mark as legacy; archive or delete after confirming v2 is stable.
-- **`backend/a`** — **DEAD**: Empty placeholder file. No purpose. **Delete.**
+
+#### Legacy Compatibility Shims (Intentional)
+- **`backend/modules/diary/diary.repository.js`** — **Intentional shim, not dead**. All diary sub-services (`murajah.service.js`, `tasmee.service.js`, etc.) require this file, but it's just a re-export of `backend/repositories/diary.repository.js` (see line 18). This is a **deliberate backward-compatibility layer** with clear documentation (lines 3–16). OK to keep as-is, but consider removing it after updating all services to import directly from repositories/.
+- **`backend/modules/themes/theme.model.js`** — **Intentional shim, DEPRECATED**. Re-exports `backend/repositories/theme.repository.js` (line 13). Comment on lines 3–9 explicitly states it's kept for backward compatibility and will be removed in next cleanup. Diary controllers still use this (see `murajah.controller.js:3`). OK to keep for now.
+
+#### Summary
+No truly dead files. Both shims serve a purpose (compatibility during refactoring) and are clearly marked. **Recommendation:** Track these in a cleanup task for next sprint.
 
 ### Dead Code
 
-#### Within `tmWizard.controller.js` (Time Management Wizard)
-- **Lines 26–29, 60, 97, 98, 148, 193, 194:** Extensive console.log statements left over from development. Many are commented as debug output (e.g., `'=== ANALYSIS DEBUG ==='`, `'=== WEEKLY CYCLE DEBUG ==='`). These should be replaced with structured logging (logger module) or removed for production. **Priority:** Moderate (tech debt).
-- **Lines 509–572:** `formatScheduleWithLLM()` helper function — **dead code path**. This function is called on line 509 but the result (`formattedSchedule`) is returned as `formattedText` on line 513. However, the frontend may not be consuming this formatted text (needs frontend verification). **Flag for review:** check if frontend uses the `formattedText` response field.
+#### Within `diary.routes.js`
+- **Lines 53–59:** Takhteet (Jadeed planning) routes are present but **not fully integrated with the diary flow**. These routes exist but it's unclear if they're used by the frontend. **Flag for review:** Check if takhteetGoal.repository.js and takhteet.controller.js are actually called.
+- **No console.log spam** — Clean routes file.
 
-#### Within `sequenceWizard.controller.js` (Sequence Wizard)
-- **Lines 75–79, 184–188, 231–232, 264–274, 283, 306–307, 315:** Debug console.log statements throughout all sequence endpoints. Similar pattern to tmWizard. **Priority:** Moderate.
-- **Lines 393–422:** `formatSequenceWithLLM()` helper function — **never called**. Defined but not invoked anywhere. **Action:** Remove or document why it exists.
+#### Within Diary Entry Services
+- **`murajah.service.js:6–10`** — Loop through entries with a simple continue check. Not dead code, but the logic is minimal. OK.
+- **`murajah.controller.js:14`** — Calls `ThemeModel.incrementStreak()` after every murajah log. This is intentional (updates streak), not dead.
 
-#### Within `flashcard.routes.js`
-- **Lines 12–31:** Debug route `/api/flashcards/debug-tables` — **DEAD** unless explicitly used by developers. This is a database introspection endpoint that exposes table schema. Should be removed or gated behind an admin/dev middleware. **Priority:** Critical (security).
-- **Lines 45–47, 71, 76, 93, 97, 99:** Console.log debug statements in production routes. **Priority:** Moderate.
-
-#### Unused Exports / Helpers
-- **`groqClient.js`:** Exports `callGroq()` but it's **never imported or used** in the codebase. The code makes direct Groq API calls via fetch instead (see `tmWizard.controller.js:552` and `sequenceWizard.controller.js:401`). This is a duplication issue (see section 6). **Priority:** Critical.
+#### Unused Parameters / Incomplete Logic
+- **`diary.repository.js:41–53`** — `createLog()` function has optional parameters for `startPage`, `finishPage`, `startJuz`, `finishJuz`. These are used conditionally (line 42), but it's unclear if they're ever passed by callers. **Action:** Search codebase to verify these parameters are actually used (likely only by jadeed).
 
 ### UI Consistency
 *Not applicable to backend module.*
@@ -56,271 +59,141 @@ The coach module handles time management wizards, flashcard creation/management,
 
 #### Current Structure
 ```
-backend/modules/coach/
-├── tmWizard.controller.js          (Time Management wizard, 574 lines)
-├── sequenceWizard.controller.js    (Sequence wizard for flashcards, 423 lines)
-├── sensoryProfileWizard.controller.js
-├── sensoryProfileWizard.routes.js
-├── flashcard.routes.js             (Flashcard CRUD, 228 lines)
-├── chat.routes.js                  (Chat/coach dialogue, 15K lines)
-├── tmWizard.routes.js
-├── sequenceWizard.routes.js
-├── groqClient.js                   (Unused Groq wrapper, 99 lines)
-├── promptBuilder.js                (Prompt formatting utility)
-├── coach.system-prompt.js          (System prompt for coach, 26K lines)
-└── prompts/                        (Prompt files)
-```
-
-#### Issues
-
-**1. Bloated Controllers (Critical)**
-- `tmWizard.controller.js` (574 lines) and `sequenceWizard.controller.js` (423 lines) contain mixed concerns:
-  - DB queries (via repositories)
-  - Business logic (cycle generation, scheduling)
-  - API response formatting
-  - LLM calls
-  
-  **Should be split:** Controllers should delegate to service classes. Example:
-  ```javascript
-  // Current: all in controller
-  exports.analyzeProgress = async (req, res, next) => {
-    const heatmapData = await heatmapRepo.getScoresByUser(userId);
-    // 120+ lines of analysis logic here
-  };
-  
-  // Proposed: extract to service
-  exports.analyzeProgress = async (req, res, next) => {
-    const analysis = await progressAnalysisService.analyze(userId);
-    res.json(formatSuccess(analysis));
-  };
-  ```
-
-**2. Inconsistent Data Contract Across Wizards**
-- `tmWizard.generateWeeklyCycle()` returns: `{ day, siparas: [...] }`
-- `sequenceWizard.getJuzSurahSequence()` returns: `{ juzNumber, surahs: [...] }`
-- No consistent wrapper or naming convention for wizard step responses.
-  **Risk:** Frontend must handle each wizard's response shape differently. Increases coupling and bug surface area.
-
-**3. Circular Dependency Risk**
-- `tmWizard.controller.js` imports `sequenceWizard.controller.js` implicitly (not directly, but via coach routes that mount both). If either gets refactored, breakage is likely.
-- Shared utilities (`promptBuilder.js`, `groqClient.js`) not used consistently; some routes import, some don't.
-
-#### Historical Bug Pattern: Day-of-Week Indexing
-- **Evidence:** Two dead cleanup scripts (`cleanup-duplicate-events.js`, `cleanup-duplicate-events-v2.js`) exist specifically to fix a recurring bug where **template application created one row per day instead of one row with merged daysOfWeek array**.
-- **Root Cause:** Inconsistent interpretation of `daysOfWeek` array semantics across different controllers/repositories.
-- **Impact:** This bug has occurred at least twice, suggesting the data contract is fragile.
-
-### Data / Control Flow
-
-#### Time Management Wizard (8 Steps)
-1. **Step 2 (Analyze Progress):** `POST /api/coach/wizard/tm/analyze`
-   - Input: `{ useCurrentLogs: boolean }`
-   - DB: Fetches heatmap scores per user
-   - Output: `{ completedMarhalas, currentMarhala, currentSipara, currentPage, allActiveSiparas, strongPages, weakPages, veryWeakPages, estimatedWorkload }`
-   - **Issue:** `useCurrentLogs` parameter is accepted but **never used** in the logic. Always uses current heatmap data. Dead parameter. **Action:** Remove or implement.
-
-2. **Step 3 (Generate Weekly Cycle):** `POST /api/coach/wizard/tm/cycle`
-   - Input: `{ analysisData: object }`
-   - Output: `{ day: string, siparas: [...] }[]` (7 days)
-   - **Issue:** Uses `allActiveSiparas` from analysis to distribute siparas evenly across days using modulo arithmetic (lines 261–265). Logic is deterministic but complex; unclear if it handles edge cases (e.g., 1 active sipara, 30+ active siparas).
-
-3. **Step 9 (Generate Schedule):** `POST /api/coach/wizard/tm/generate`
-   - Input: `{ weeklyCycle, dailySchedule, frequency, exceptions, timeInputs, preferences }`
-   - **Data Shape Mismatch:** `weeklyCycle` is expected but `frequency`, `exceptions`, `preferences` are accepted but **not always used** in the logic. Lines 287–289 log them, but the actual scheduling (lines 317–504) primarily uses `weeklyCycle`, `dailySchedule`, `exceptions`, and `timeInputs`.
-   - **Flow:** 
-     1. Fetch heatmap data for page scores
-     2. For each day in `weeklyCycle`, calculate free time by merging `dailySchedule` fixedEvents + `exceptions`
-     3. Reserve time for Jadeed (45 min) + Juz Hali (20 min)
-     4. Allocate remaining time to Muraja'ah (revision) based on page scores
-     5. Format with LLM for readability (line 509)
-   - **Issue:** `getTimePerPage()` (lines 302–310) uses hardcoded score-to-time mapping. If Diary marks scale changes, this breaks. Should be a configuration constant.
-
-4. **Step 10 (Save Schedule):** `POST /api/coach/wizard/tm/save`
-   - Input: `{ schedule: object }`
-   - **Issue:** Controller accepts schedule but **does not persist it**. Comment on line 531 says "In production, this would save to a schedules table." This is incomplete. **Critical:** The generated schedule is never saved; users cannot retrieve it later.
-
-#### Sequence Wizard (Flashcard Creation)
-1. **Surah Sequence:** `POST /api/coach/wizard/sequence/surah`
-   - Fetches ayahs by surah, orders by ayah number, returns first/last 3 words based on mode.
-   - **Data shape:** `{ surahName, surahNumber, mode, ayahs: [...], ayahCount, juzInfo, pageInfo, neighboringSurahs }`
-
-2. **Page Sequence:** `POST /api/coach/wizard/sequence/page`
-   - Fetches ayahs on page, orders by surah+ayah, fetches neighboring page ayahs separately.
-   - **Data shape:** `{ pageNumber, mode, ayahs: [...], firstAyah, firstAyahText, lastAyah, lastAyahText, neighboringAyahs }`
-   - **Issue:** Fetches neighboring ayahs one by one (lines 152–177) instead of batching queries. Performance issue if many pages.
-
-3. **Juz Pages Sequence:** `POST /api/coach/wizard/sequence/juz-pages`
-   - Fetches pages by juz, then for each page, fetches ayahs to get first/last word.
-   - **Issue:** N+1 query problem (line 260: `await Promise.all(...)`). If juz has 20 pages, this makes 21 DB calls.
-
-4. **Juz Surah Sequence:** `POST /api/coach/wizard/sequence/juz-surahs`
-   - Fetches surahs by juz, then for each surah, fetches first ayah separately.
-   - **Issue:** N+1 query problem again (line 359: `await Promise.all(...)`).
-
-### Duplication
-
-#### Groq API Calls
-**Issue:** API calls to Groq are duplicated across multiple files:
-1. `tmWizard.controller.js:544–572` — `formatScheduleWithLLM()`
-2. `sequenceWizard.controller.js:393–422` — `formatSequenceWithLLM()` (never called)
-3. `chat.routes.js` (large file, not fully reviewed yet) — likely more Groq calls
-
-**Each duplicates:**
-- Fetch setup (method, headers, Auth header, body)
-- Error handling
-- Response parsing
-- Hardcoded model ("llama-3.3-70b-versatile") and temperature (0.7 or 0.3)
-
-**Note:** `groqClient.js` exists but is unused, suggesting this duplication was not caught.
-
-#### Day Array Mappings
-- `sequenceWizard.controller.js:221` — hardcoded `const days = ['SUNDAY', 'MONDAY', ..., 'SATURDAY']`
-- Similar arrays likely exist in diary, scheduler, and frontend modules (to be verified in later passes).
-- Should be centralized in `backend/shared/constants/` or similar.
-
-#### Page Score-to-Time Mapping
-- `tmWizard.controller.js:302–310` — `getTimePerPage()` hardcodes: Excellent=1min, Very Good=2min, Good=3min, Fair=4min, Poor=5min
-- This logic is **not shared** across the codebase; duplicated if referenced elsewhere (to be verified).
-
-### Severity Summary
-
-| Finding | Severity | Impact |
-|---------|----------|--------|
-| Debug route `/api/flashcards/debug-tables` exposes schema | **Critical** | Security vulnerability |
-| Schedule not persisted (step 10 incomplete) | **Critical** | Feature broken |
-| Unused `groqClient.js` module; Groq calls duplicated | **Critical** | Code duplication, maintenance burden |
-| console.log spam across controllers | **Moderate** | Noise in logs, tech debt |
-| N+1 queries in sequence wizard | **Moderate** | Performance issue for large data |
-| `useCurrentLogs` parameter unused | **Minor** | Dead parameter |
-| `formatSequenceWithLLM()` never called | **Minor** | Dead code |
-| Bloated controllers (500+ lines each) | **Moderate** | Maintainability, testability |
-| Inconsistent wizard response shapes | **Moderate** | Frontend coupling, error surface |
-| Day-of-week indexing bug history | **Critical** | Recurring architectural flaw |
-
----
-
-## 2. Backend — modules/similarity (Mutashabihat / Similar Verses)
-
-### Overview
-The similarity module finds structurally similar Quranic verses and allows users to save/edit memory tips. Comparatively clean architecture with well-separated concerns (controller, model, service, repository).
-
-### Dead Files
-- None detected.
-
-### Dead Code
-
-#### Within `similarity.controller.js`
-- **Line 11–14:** Helper function `strengthLabel()` — **used only once** (line 46). Trivial logic (score comparison). Could be inlined or moved to a utility constants file if reused elsewhere. **Priority:** Minor.
-- **No console.log spam** — Unlike coach module, this is clean.
-
-#### Within `similarity.model.js` (File)
-- **Lines 1–51:** This entire file exists but is **superseded by `similarity.repository.js`**. The controller imports from repository, not from model. This is a legacy leftover from refactoring. **Action:** Delete `similarity.model.js`.
-
-### UI Consistency
-*Not applicable to backend module.*
-
-### Architecture
-
-#### Current Structure
-```
-backend/modules/similarity/
-├── similarity.routes.js           (Routes, 16 lines)
-├── similarity.controller.js       (Controller, 108 lines)
-├── wizard.routes.js               (Wizard routes, 14 lines)
-├── wizard.controller.js           (Wizard controller, 80 lines)
-├── filter.service.js              (Filter logic, 32 lines)
-├── similarity.model.js            (DEAD: superseded by repository)
-└── (formerly similarity.model.js, now split into repository.js)
+backend/modules/diary/
+├── diary.routes.js                (Aggregator routes, 61 lines)
+├── diary.repository.js            (Compatibility shim, 18 lines)
+├── murajah/
+│   ├── murajah.controller.js      (16 lines)
+│   └── murajah.service.js         (12 lines)
+├── tasmee/                        (Similar structure)
+├── ikhtebar/                      (Similar structure)
+├── jadeed/
+│   ├── jadeed.controller.js       (13 lines)
+│   └── jadeed.service.js          (40 lines)
+├── juzzHali/                      (Similar structure)
+├── log/
+│   └── log.controller.js          (Update/delete individual logs)
+└── takhteet/                      (Jadeed planning feature)
 
 backend/repositories/
-└── similarity.repository.js       (Repository, 132 lines)
+├── diary.repository.js            (Real implementation, 227 lines)
+├── heatmap.repository.js          (Heatmap scores table, 41 lines)
+└── theme.repository.js            (Streak & theme data, 127 lines)
 ```
 
 #### Observations
 
-**1. Good Separation of Concerns**
-- Routes delegate to controllers (clean)
-- Controllers delegate to repositories & services (clean)
-- Business logic in `filter.service.js` is isolated
-- No circular dependencies detected
+**1. Clean Entry-Type Segregation**
+- Each diary type (murajah, tasmee, ikhtebar, jadeed, juz_hali) has its own controller + service
+- Each service calls `diaryRepo.createLog()` with different parameters
+- Reduces code bloat compared to a single monolithic controller
 
-**2. Bidirectional Pair Storage**
-- Similarity pairs are stored both directions (A→B and B→A) for fast lookup
-- When tips are updated, both rows must stay in sync
-- **Issue:** Sync logic is duplicated across two functions:
-  - `updateTipsById()` (lines 40–56): fetches pair, then updates reverse
-  - `updateTipsByPair()` (lines 68–80): updates both directions directly
-  - **Redundancy:** If called with ID, requires extra DB query to find coordinates. If called with coordinates, skips the lookup. Inconsistent API.
+**2. Dual Data Sources for Heatmap**
+- **Issue:** Two separate data sources compute page strength:
+  1. **`diary_logs` table via `diary.repository.getHeatmapAggregates()`** — queries `diary_logs` where `type = 'murajah'` and `range_from LIKE '%Page%'` (line 188–200). Returns `[{page_ref, score, entry_count}]`.
+  2. **`heatmap_scores` table via `heatmap.repository.getScoresByUser()`** — explicit per-page scores (line 17–26). Returns `[{juz, page, score}]`.
+  
+  **Problem:** These may diverge if:
+  - Diary logs are updated but heatmap_scores is not
+  - Scheduler uses one source, analytics uses the other
+  - Frontend receives conflicting data
+  
+  **Risk:** The scheduler (`tmWizard.controller.js:314`) fetches from `heatmapRepo.getScoresByUser()` (heatmap_scores table), but the diary analytics might show different results from diary_logs. This is a **data consistency issue**. **See section 11 for proposed fix.**
 
-**3. Placeholder Similarity Score**
-- **Line 102** in `similarity.repository.js`: `const mutashabihaScore = 0.5;` — hardcoded placeholder
-- Comment says "should use actual similarity calculation"
-- This is called when creating a new pair via wizard (lines 100–130)
-- **Issue:** If wizard saves a new pair (currently unused in production, but route exists), the similarity score is always 0.5. This breaks the UI's score-based highlighting (similarity.controller.js:45).
+**3. Streak Logic Solid but Date-Dependent**
+- `theme.repository.incrementStreak()` (lines 50–70) correctly handles:
+  - Already logged today → no-op
+  - Logged yesterday → streak + 1
+  - Gap in logs → reset to 1
+- **Issue:** Date comparison uses ISO strings split on "T" (line 54–55). This is timezone-sensitive and fragile. Should use SQL date functions consistently.
+- **Issue:** `last_log_date` stores only the date, losing time information. If user logs twice in one day (on different dates per their timezone), streak might reset incorrectly.
 
-**4. Data Contract: Bidirectional Lookup**
-- `getPairByCoordinates()` (lines 86–94) checks both directions: `(ss:sa → ts:ta) OR (ts:ta → ss:sa)`
-- This works but is inflexible. If schema changes (e.g., storing only min-surah pairs), this needs rewrite.
-- **Suggestion:** Normalize pairs to always store min(surah) first (like scheduler's dedup approach might benefit from).
+**4. N+1 Risk in Theme Switching**
+- `switchTheme()` (lines 88–125) fetches active theme (line 51), then fetches target theme (line 104), then does updates.
+- If called multiple times, could be optimized, but low risk (usually called once per session).
 
 ### Data / Control Flow
 
-#### Similarity Search Flow
+#### Diary Entry Creation Flow
 ```
-GET /api/similarity?surah=2&ayah=255&marhala=in-progress
+POST /api/diary/murajah
+  Body: { entries: [{range_from: "Juz 1 Page 1", range_to: "", score: 8}, ...], date: "2026-07-10" }
     ↓
-similarity.controller.getSimilarities()
-    ├─ ayahRepo.getAyah(surah, ayah)             [fetch source]
-    ├─ similarityRepo.getSimilarities(surah, ayah) [fetch matches]
-    ├─ JSON.parse(tips) for each match
-    ├─ applyFilters(results, marhala, juzList, page)
-    │   └─ filter.service.applyFilters() [applied filters]
-    └─ Add highlight_mode + strength_label
-    ↓
-Response: { source, results: [...] }
-```
-
-**Data Shape Mismatch Risk:** Low. The result shape is consistent.
-
-#### Tip Update Flow
-```
-PATCH /api/similarity/by-pair/tips
-  Body: { source_surah, source_ayah, target_surah, target_ayah, tips: [...] }
-    ↓
-similarity.controller.updateTipsByPair()
-    ├─ validateInput()
-    ├─ sanitiseTips(tips)  [trim, max 500 chars, max 20 entries]
-    └─ similarityRepo.updateTipsByPair(ss, sa, ts, ta, cleanTips)
-        ├─ UPDATE similarities WHERE (ss:sa → ts:ta) [forward]
-        └─ UPDATE similarities WHERE (ts:ta → ss:sa) [backward]
-    ↓
-Response: { tips: cleanTips }
+diary.routes.js → murajah.controller.addMurajahLog()
+    ├─ Validate: entries is array, non-empty
+    ├─ Call murajah.service.createMurajahLogs(userId, entries, date)
+    │   └─ For each entry:
+    │       └─ diary.repository.createLog(userId, "murajah", range_from, range_to, score, date)
+    │           └─ INSERT INTO diary_logs (user_id, type, range_from, range_to, score, created_at)
+    ├─ Increment streak: theme.repository.incrementStreak(userId)
+    │   └─ Fetch last_log_date, compare to today/yesterday
+    │   └─ UPDATE user_themes SET streak, max_streak, last_log_date
+    └─ Response: { logged: count }
 ```
 
-**Note:** Tips sanitization is solid (max length, max count, trim whitespace).
+**Data Shape:** `diary_logs` table has columns:
+- `id, user_id, type, range_from, range_to, score, created_at`
+- Plus optional: `start_page, finish_page, start_juz, finish_juz` (used by jadeed)
+
+**Issue:** `range_from` and `range_to` are free-text strings (e.g., "Juz 1 Page 15"). Frontend must parse these to extract page numbers for the heatmap. **Brittle data contract** — if parsing logic differs between frontend and backend, data mismatches occur.
+
+#### Heatmap Aggregation Flow
+```
+GET /api/diary/heatmap
+    ↓
+diary.repository.getHeatmapAggregates(userId)
+    └─ SELECT AVG(score) FROM diary_logs 
+       WHERE type='murajah' AND range_from LIKE '%Page%'
+       GROUP BY range_from
+    ↓
+Response: [{ page_ref: "Juz 1 Page 15", score: 7.5, entry_count: 4 }, ...]
+```
+
+**Issue:** Parsing happens on client side. Frontend must extract page number from `"Juz X Page Y"` string. If format changes, frontend breaks.
+
+#### Streak Increment Logic (with edge case)
+```
+Rules:
+  - Already logged today?           → return current row (no change)
+  - Last log was yesterday?         → streak + 1, max_streak = max(max_streak, new_streak)
+  - Last log was earlier?           → reset streak to 1
+  - No active theme?                → return null
+
+Timezone Risk:
+  - Uses .split("T")[0] which is UTC-based
+  - If user's local date differs from UTC date, streak may miscalculate
+```
 
 ### Duplication
 
-#### Bidirectional Update Logic
-- **`similarity.model.js:17–32`** vs **`similarity.repository.js:40–56`** — Nearly identical `updateTips()` implementations. Both exist but only repository is used.
-- **`similarity.model.js:35–49`** vs **`similarity.repository.js:68–80`** — Nearly identical `updateTipsByPair()` implementations.
-- **Action:** Delete the model file (it's dead).
+#### Score-to-Time Mapping
+- **`diary.repository.getHeatmapAggregates()`** queries raw diary logs (averaged score)
+- **`tmWizard.controller.getTimePerPage()`** (coach module) has separate score-to-time mapping
+- These should be unified in a shared constants file. **See section 11.**
 
-#### Strength Label Logic
-- `similarity.controller.js:11–14` implements score-to-label mapping (High/Medium/Low)
-- Same logic likely exists in frontend (to be verified). Should be centralized in a shared constants file.
+#### Date String Formatting
+- `theme.repository.incrementStreak():54–55` uses `.split("T")[0]` to extract date
+- Similar logic likely duplicated elsewhere (coach, analytics)
+- Should be centralized in `backend/utils/dateUtils.js`
+
+#### Entry Type Validation
+- Each sub-controller (murajah, tasmee, etc.) validates `entries` parameter independently
+- `diary.routes.js:12` defines `batchEntryRules`
+- Validation is centralized (good), but `jadeedRules` is separate (line 14–18)
+- **Minor inconsistency:** Different entry types have different validation rules passed to middleware, but the actual validation calls are duplicated in each controller
 
 ### Severity Summary
 
 | Finding | Severity | Impact |
 |---------|----------|--------|
-| Dead file: `similarity.model.js` superseded by repository | **Minor** | Code duplication, unused file |
-| Placeholder similarity score (0.5) for new pairs | **Moderate** | Feature incomplete, UI broken for manual pairs |
-| Bidirectional update logic inconsistency | **Minor** | API confusion, slight coupling |
-| `strengthLabel()` used once; trivial | **Minor** | Candidate for inlining or deletion |
-| None of the critical/architectural issues from coach module | **✓** | Well-structured module |
+| Dual heatmap data sources (diary_logs vs heatmap_scores) | **Critical** | Data consistency issue, conflicting UI data |
+| Brittle data contract (free-text range_from/range_to) | **Moderate** | Frontend parsing errors, maintenance burden |
+| Timezone-sensitive streak logic | **Moderate** | Potential streak miscalculations across timezones |
+| Compatibility shims (diary.repository.js, theme.model.js) | **Minor** | Tech debt, should be removed in next cleanup |
+| Optional jadeed parameters possibly unused | **Minor** | Dead parameters (needs verification) |
+| Date string formatting duplicated across modules | **Minor** | Code duplication, should centralize |
+| Takhteet routes unclear if used | **Minor** | Possible dead feature (needs verification) |
 
 ---
 
-*Audit continues with module 3 (Backend — modules/diary) in next section.*
-
+*Audit continues with module 4 (Backend — remaining modules) next.*
