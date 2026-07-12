@@ -1,0 +1,492 @@
+/* C:\quran-similarity-app\frontend\src\styles\QuranMapView.css */
+
+/* ============================================
+   SCREEN STYLES
+   ============================================ */
+
+.chart-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    border: 1px solid #E5E7EB;
+}
+
+.chart-card h3 {
+    margin-bottom: 10px;
+    color: #004D40;
+}
+
+.quran-map-card {
+    border-top: 4px solid #8B5CF6;
+    overflow: hidden;
+}
+
+.heatmap-subtitle {
+    font-size: 13px;
+    color: #6B7280;
+    margin-bottom: 15px;
+}
+
+.loading-chart {
+    text-align: center;
+    padding: 40px;
+    color: #6B7280;
+}
+
+.quran-map-screen-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.print-button {
+    background: #004D40;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.print-button:hover {
+    background: #00382E;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 77, 64, 0.3);
+}
+
+.heatmap-legend {
+    justify-content: center;
+    display: flex;
+    gap: 15px;
+    margin-bottom: 2mm;
+    font-size: 10pt;
+    font-weight: 600;
+    color: #374151;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.legend-item::before {
+    content: "";
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid #E5E7EB;
+}
+
+.empty-box::before { background: #F9FAFB; }
+.poor-box::before { background: #FEE2E2; border-color: #FECACA; }
+.fair-box::before { background: #FFEDD5; border-color: #FDBA74; }
+.good-box::before { background: #FEF9C3; border-color: #FDE047; }
+.veryGood-box::before { background: #DCFCE7; border-color: #86EFAC; }
+.excellent-box::before { background: #BBF7D0; border-color: #4ADE80; }
+.invalid-box::before { background: #D1D5DB; border-color: #9CA3AF; }
+
+.heatmap-scroll-container {
+    overflow-x: auto;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    background: white;
+}
+
+.heatmap-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 900px;
+}
+
+.heatmap-table th,
+.heatmap-table td {
+    border: 1px solid #E5E7EB;
+    text-align: center;
+}
+
+.juzz-header {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #F9FAFB;
+    border-bottom: 2px solid #D1D5DB;
+}
+
+.page-header {
+    background: #F9FAFB;
+    font-size: 12px;
+    color: #6B7280;
+    padding: 8px 4px;
+}
+
+.juzz-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: white;
+    font-weight: 700;
+    font-size: 13px;
+    color: #004D40;
+    padding: 10px;
+    text-align: left;
+    min-width: 80px;
+    border-right: 2px solid #E5E7EB;
+}
+
+.heatmap-cell {
+    padding: 12px 4px;
+    font-size: 13px;
+    font-weight: 600;
+    width: 40px;
+    height: 35px;
+    transition: transform 0.1s;
+    cursor: pointer;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.2);
+    z-index: 1;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.heatmap-cell.empty { background: #F9FAFB; color: transparent; }
+.heatmap-cell.poor { background: #FEE2E2; color: #991B1B; }
+.heatmap-cell.fair { background: #FFEDD5; color: #9A3412; }
+.heatmap-cell.good { background: #FEF9C3; color: #854D0E; }
+.heatmap-cell.veryGood { background: #DCFCE7; color: #166534; }
+.heatmap-cell.excellent { background: #BBF7D0; color: #14532D; }
+
+.heatmap-cell.invalid {
+    background: #D1D5DB !important;
+    color: transparent !important;
+    cursor: default !important;
+}
+
+.heatmap-cell.invalid:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.print-only {
+    display: none;
+}
+
+
+/* ============================================
+   PRINT STYLES
+   A4 LANDSCAPE — SINGLE PAGE
+   ============================================ */
+
+@media print {
+
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        box-sizing: border-box;
+    }
+
+    @page {
+        size: A4 landscape;
+        margin: 4mm;
+    }
+
+    /* Only apply these constraints when printing Quran Map */
+    body.printing-quran-map,
+    body.printing-quran-map html {
+        width: 297mm;
+        height: 200mm;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: white;
+    }
+
+    /* Hide everything except map when printing Quran Map */
+    body.printing-quran-map * {
+        visibility: hidden;
+    }
+
+    body.printing-quran-map .quran-map-card,
+    body.printing-quran-map .quran-map-card * {
+        visibility: visible;
+    }
+
+    body.printing-quran-map .quran-map-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+
+        width: 102%;
+        height: 100%;
+
+        margin: 0;
+        padding: 3mm;
+
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+
+        overflow: hidden;
+
+        display: flex;
+        flex-direction: column;
+
+        transform: scale(0.98);
+        transform-origin: top left;
+    }
+
+    .print-only {
+        display: block !important;
+    }
+
+    .quran-map-screen-header {
+        display: none !important;
+    }
+
+    /* ============================================
+       PRINT HEADER
+       ============================================ */
+
+    .print-header {
+        text-align: center;
+        margin-bottom: 2mm;
+        padding-bottom: 1.5mm;
+        border-bottom: 1px solid #004D40;
+        flex-shrink: 0;
+    }
+
+    .print-header h1 {
+        color: #004D40;
+        font-size: 10pt;
+        margin: 0 0 1mm 0;
+        letter-spacing: 0.3px;
+    }
+
+    .print-stats {
+        display: flex;
+        justify-content: center;
+        gap: 7px;
+        font-size: 10pt;
+        font-weight: 600;
+        color: #374151;
+        margin: 0;
+    }
+
+    .print-poor { color: #991B1B; }
+    .print-fair { color: #9A3412; }
+    .print-good { color: #854D0E; }
+    .print-veryGood { color: #166534; }
+    .print-excellent { color: #14532D; }
+
+    .print-date {
+        font-size: 4.5pt;
+        color: #9CA3AF;
+        margin-top: 0.5mm;
+    }
+
+    /* ============================================
+       LEGEND
+       ============================================ */
+
+    .heatmap-legend {
+        justify-content: center;
+        margin-bottom: 2mm;
+        font-size: 6pt;
+        padding: 1.5mm 3mm;
+        background: #F9FAFB;
+        border: 0.2px solid #D1D5DB;
+        border-radius: 2px;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .legend-item::before {
+        width: 8px;
+        height: 8px;
+        border-radius: 1px;
+    }
+
+    /* ============================================
+       TABLE CONTAINER
+       ============================================ */
+
+    .heatmap-scroll-container {
+        overflow: hidden;
+        border: 0.5px solid #374151;
+        border-radius: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        page-break-inside: avoid;
+    }
+
+    .heatmap-table {
+        width: 100%;
+        min-width: unset;
+
+        table-layout: fixed;
+        border-collapse: collapse;
+        border-spacing: 0;
+
+        page-break-inside: avoid;
+    }
+
+    .heatmap-table thead {
+        display: table-header-group;
+    }
+
+    .heatmap-table tr {
+        page-break-inside: avoid;
+    }
+
+    .heatmap-table th,
+    .heatmap-table td {
+        border: 0.2px solid #BDBDBD;
+        padding: 0;
+        margin: 0;
+
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* ============================================
+       COLUMN WIDTHS
+       ============================================ */
+
+    .juzz-label {
+        position: static;
+
+        width: 6%;
+        min-width: 6%;
+        max-width: 6%;
+
+        background: white !important;
+        color: #004D40;
+
+        font-size: 8pt;
+        font-weight: 700;
+
+        text-align: center;
+
+        border-right: 0.8px solid #374151;
+    }
+
+    .juzz-header,
+    .page-header,
+    .heatmap-cell {
+        width: calc(94% / 23);
+        min-width: calc(94% / 23);
+        max-width: calc(94% / 23);
+    }
+
+    /* ============================================
+       HEADERS
+       ============================================ */
+
+    .juzz-header {
+        position: static;
+
+        background: #E5E7EB !important;
+
+        font-size: 9pt;
+        font-weight: 700;
+
+        border-bottom: 0.8px solid #6B7280;
+    }
+
+    .page-header {
+        background: #F3F4F6 !important;
+
+        font-size: 9pt;
+        color: #6B7280;
+    }
+
+    /* ============================================
+       CELLS
+       ============================================ */
+
+    .heatmap-cell {
+        padding: 0;
+
+        height: 5.30mm;
+
+        font-size: 7pt;
+        font-weight: 700;
+
+        text-align: center;
+        vertical-align: middle;
+
+        line-height: 1;
+
+        cursor: default;
+    }
+
+    .heatmap-cell:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    .heatmap-cell.empty {
+        background: #FFFFFF !important;
+        color: transparent !important;
+    }
+
+    .heatmap-cell.poor {
+        background: #FECACA !important;
+        color: #7F1D1D !important;
+    }
+
+    .heatmap-cell.fair {
+        background: #FED7AA !important;
+        color: #9A3412 !important;
+    }
+
+    .heatmap-cell.good {
+        background: #FDE047 !important;
+        color: #854D0E !important;
+    }
+
+    .heatmap-cell.veryGood {
+        background: #86EFAC !important;
+        color: #166534 !important;
+    }
+
+    .heatmap-cell.excellent {
+        background: #4ADE80 !important;
+        color: #14532D !important;
+    }
+
+    .heatmap-cell.invalid {
+        background: #E5E7EB !important;
+        color: transparent !important;
+        border: 0.2px dashed #B0B0B0 !important;
+    }
+
+    /* ============================================
+       FOOTER
+       ============================================ */
+
+    .print-footer {
+        text-align: center;
+
+        margin-top: 1.5mm;
+        padding-top: 1mm;
+
+        border-top: 0.2px solid #D1D5DB;
+
+        font-size: 4.5pt;
+        color: #9CA3AF;
+
+        flex-shrink: 0;
+    }
+}
