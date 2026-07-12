@@ -1,0 +1,172 @@
+/* C:\quran-similarity-app\frontend\src\styles\DiaryPage.css */
+/* =========================================
+   LAYOUT
+   ========================================= */
+.app-layout { min-height: 100vh; display: flex; flex-direction: column; }
+.app-content { flex: 1; background: #F5F0E8; }
+.diary-page-container { max-width: 900px; margin: 0 auto; padding: 30px; display: flex; flex-direction: column; gap: 25px; }
+.diary-book { position: relative; overflow: hidden; background: #FFFFFF; border: 1px solid #E8DCC8; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+.diary-nav-header { display: flex; justify-content: space-between; align-items: center; background: #FFFFFF; padding: 10px 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #E8DCC8; }
+.nav-arrow { background: #F5F0E8; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; color: #1B4332; }
+.nav-arrow:hover:not(:disabled) { background: #E8DCC8; transform: scale(1.1); }
+.nav-arrow:disabled { color: #D1D5DB; cursor: not-allowed; }
+.nav-center { display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; }
+.date-picker { border: none; font-size: 16px; font-weight: 600; color: #1B4332; text-align: center; cursor: pointer; padding: 5px 10px; border-radius: 6px; background: transparent; }
+.date-picker:focus { background: #F5F0E8; outline: none; }
+.diary-page-content { min-height: 400px; padding: 25px; display: flex; flex-direction: column; gap: 25px; }
+.diary-card { background: #FFFFFF; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); border: 1px solid #E8DCC8; }
+.diary-card h3 { color: #1B4332; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #E8DCC8; }
+.diary-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.diary-tabs button { flex: 1; padding: 10px; background: #FFFFFF; border: 2px solid #2D6A4F; border-radius: 8px; font-weight: 600; color: #1B4332; cursor: pointer; transition: 0.2s; }
+.diary-tabs button.active { background: #1B4332; color: #F5F0E8; border-color: #1B4332; }
+.save-status-text { font-size: 12px; font-weight: 600; color: #2D6A4F; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* =========================================
+   FORMS BASE
+   ========================================= */
+.log-form { display: flex; flex-direction: column; gap: 15px; }
+.range-group { display: flex; flex-direction: column; gap: 6px; }
+.range-group label { font-size: 13px; font-weight: 700; color: #1B4332; }
+.range-group input, .range-group select { padding: 10px; border: 1px solid #52B788; border-radius: 6px; font-size: 14px; width: 100%; box-sizing: border-box; background: #FFFFFF;}
+.range-group input:focus, .range-group select:focus { outline: none; border-color: #C9A84C; box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.2); }
+.range-group input:disabled { background: #E8DCC8; color: #8B7355; cursor: not-allowed; }
+.auto-surah-text { padding: 10px; background: #F0FDF4; border: 1px solid #52B788; border-radius: 6px; font-weight: 600; color: #1B4332; text-align: center; font-size: 14px; width: 100%; box-sizing: border-box; }
+.form-row.metrics { background: #F5F0E8; padding: 15px; border-radius: 8px; border: 1px solid #E8DCC8; display: flex; gap: 20px; flex-wrap: wrap; }
+textarea { width: 100%; padding: 10px; border: 1px solid #52B788; border-radius: 8px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+textarea:focus { outline: none; border-color: #C9A84C; }
+.metrics { display: flex; gap: 20px; flex-wrap: wrap; }
+.metrics.compact { flex-direction: column; gap: 15px; }
+.metric-group { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 8px; }
+.metric-group label { font-size: 13px; color: #8B7355; display: flex; justify-content: space-between; }
+.submit-btn { padding: 12px; background: #2D6A4F; color: #F5F0E8; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%; }
+.submit-btn.secondary { background: #C9A84C; color: #1B4332; }
+.secondary-btn { padding: 10px 20px; background: #FFFFFF; color: #1B4332; border: 2px solid #1B4332; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+.secondary-btn:hover { background: #F0FDF4; }
+.icon-btn { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; transition: 0.2s; }
+.icon-btn.edit:hover { background: #E8DCC8; }
+.icon-btn.delete:hover { background: #FEE2E2; }
+
+/* =========================================
+   MARKS INPUT
+   ========================================= */
+.marks-input { width: 90px; padding: 8px 10px; border-radius: 8px; font-weight: bold; font-size: 15px; text-align: center; transition: all 0.2s; }
+.marks-red { background: #fee2e2; border: 2px solid #C0392B; color: #C0392B; }
+.marks-yellow { background: #FBF0D9; border: 2px solid #C9A84C; color: #8B7355; }
+.marks-green { background: #d1fae5; border: 2px solid #52B788; color: #1B4332; }
+.marks-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.2); }
+.entry-notes { width: 100%; padding: 8px 10px; border: 1px solid #E8DCC8; border-radius: 6px; font-size: 13px; font-family: inherit; resize: vertical; box-sizing: border-box; margin-top: 8px; }
+.entry-notes:focus { outline: none; border-color: #C9A84C; box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.1); }
+.entry-notes::placeholder { color: #8B7355; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* =========================================
+   JADEED / MURAJAH / IKHTEBAR LAYOUTS
+   ========================================= */
+.jadeed-range-container { display: flex; gap: 15px; align-items: flex-end; background: #F5F0E8; padding: 15px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+.jadeed-side { flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 10px; }
+.arrow-divider { font-size: 24px; color: #8B7355; font-weight: bold; padding-top: 25px; }
+.murajah-container { display: flex; flex-direction: column; gap: 20px; }
+.murajah-juzz-input { display: flex; gap: 15px; align-items: center; background: #F5F0E8; padding: 15px; border-radius: 8px; flex-wrap: wrap; }
+.murajah-juzz-input label { font-weight: 700; color: #1B4332; white-space: nowrap; }
+.murajah-juzz-input input { padding: 10px; border: 1px solid #52B788; border-radius: 6px; max-width: 120px; }
+.queued-summary { background: #FBF0D9; padding: 10px 15px; border-radius: 8px; border-left: 4px solid #C9A84C; }
+.queue-badges { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.queue-badge { background: #FFFFFF; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; color: #1B4332; border: 1px solid #C9A84C; }
+.suwal-container { border: 2px solid #1B4332; border-radius: 8px; padding: 20px; background: #FFFFFF; }
+.suwal-container h4 { margin: 0 0 15px 0; color: #1B4332; border-bottom: 1px solid #E8DCC8; padding-bottom: 10px; }
+.suwal-block { background: #F5F0E8; border: 1px solid #E8DCC8; border-left: 5px solid #C9A84C; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+.suwal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.suwal-header strong { font-size: 16px; color: #3D2B1F; }
+.remove-juzz-btn { background: #FEE2E2; color: #C0392B; border: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.suwal-body { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.suwal-body select { flex: 1; min-width: 150px; padding: 10px; border: 1px solid #E8DCC8; border-radius: 6px; background: #FFFFFF; }
+.suwal-actions { display: flex; gap: 10px; margin-top: 10px; justify-content: flex-end; }
+.ikhtebar-container { display: flex; flex-direction: column; gap: 15px; }
+.ikhtebar-range-input { display: flex; gap: 15px; align-items: flex-end; background: #F5F0E8; padding: 15px; border-radius: 8px; border: 1px dashed #8B7355; flex-wrap: wrap; }
+.ikhtebar-block { background: #FFFFFF; border: 1px solid #E8DCC8; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+.ikhtebar-block h4 { margin: 0 0 10px 0; color: #1B4332; font-size: 15px; }
+
+/* Fix #9: mobile layout for jadeed/juzz-hali range container */
+@media (max-width: 600px) {
+    .jadeed-range-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .jadeed-side {
+        min-width: unset;
+        width: 100%;
+    }
+    .arrow-divider {
+        transform: rotate(90deg);
+        align-self: center;
+        padding-top: 0;
+        margin: 4px 0;
+    }
+    .murajah-juzz-input {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .murajah-juzz-input input {
+        max-width: 100%;
+    }
+    .suwal-actions {
+        flex-direction: column;
+    }
+    .diary-tabs button {
+        font-size: 12px;
+        padding: 8px 4px;
+    }
+    .diary-page-container {
+        padding: 12px;
+    }
+    .diary-page-content {
+        padding: 14px;
+    }
+}
+
+/* =========================================
+   TASKS
+   ========================================= */
+.task-form { display: flex; gap: 10px; margin-bottom: 15px; }
+.task-form select { padding: 10px; border: 1px solid #E8DCC8; border-radius: 6px; background: #FFFFFF; }
+.input-wrapper { position: relative; flex: 1; }
+.input-wrapper input { width: 100%; padding: 10px; border: 1px solid #E8DCC8; border-radius: 6px; padding-right: 50px; box-sizing: border-box; }
+.char-limit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #8B7355; }
+.task-form button { background: #2D6A4F; color: #F5F0E8; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.task-list { display: flex; flex-direction: column; gap: 10px; }
+.task-item { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #E8DCC8; border-radius: 8px; background: #FFFFFF; transition: 0.2s; }
+.task-item.completed { background: #F0FDF4; border-color: #52B788; }
+.task-item.completed .task-title { text-decoration: line-through; color: #8B7355; }
+.task-title { flex: 1; font-weight: 500; }
+.task-badge { font-size: 11px; padding: 4px 8px; border-radius: 12px; background: #E8DCC8; color: #1B4332; font-weight: 600; text-transform: uppercase; }
+.task-actions { display: flex; align-items: center; gap: 8px; }
+.task-status-select { padding: 6px; border-radius: 6px; border: 1px solid #E8DCC8; font-size: 12px; background: #FFFFFF; }
+.empty-tasks { text-align: center; color: #8B7355; padding: 20px; font-style: italic; }
+.edit-wrapper { display: flex; gap: 8px; flex: 1; }
+.edit-wrapper input { flex: 1; padding: 6px 10px; border: 1px solid #1B4332; border-radius: 4px; }
+
+/* =========================================
+   LOGS & REFLECTIONS
+   ========================================= */
+.logs-list { display: flex; flex-direction: column; gap: 12px; }
+.log-item { border: 1px solid #E8DCC8; border-radius: 8px; padding: 15px; background: #FFFFFF; }
+.log-item.edit-mode { border-color: #1B4332; background: #FFFFFF; }
+.log-header { display: flex; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+.log-type { font-weight: 700; font-size: 13px; color: #1B4332; background: #E8DCC8; padding: 2px 8px; border-radius: 4px; }
+.log-stats { display: flex; gap: 15px; font-size: 13px; font-weight: 500; margin-bottom: 5px; }
+.log-notes { font-size: 13px; color: #8B7355; font-style: italic; margin-top: 5px; }
+.log-action-btns { display: flex; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #E8DCC8; justify-content: flex-end; }
+.log-action-btns .icon-btn.edit { background: #F0FDF4; color: #2D6A4F; }
+.log-action-btns .icon-btn.edit:hover { background: #D1FAE5; }
+.log-action-btns .icon-btn.delete { background: #FEE2E2; color: #C0392B; }
+.log-action-btns .icon-btn.delete:hover { background: #FECACA; }
+.edit-log-form { display: flex; flex-direction: column; gap: 10px; }
+.edit-actions { display: flex; gap: 10px; }
+.empty-state { text-align: center; color: #8B7355; padding: 30px; }
+.reflection-card { background: #FBF0D9; border-color: #E8C86A; }
+.reflection-grid { display: flex; flex-direction: column; gap: 15px; }
+.reflection-field label { display: block; font-weight: 600; color: #8B7355; margin-bottom: 6px; font-size: 14px; }
+.reflection-field textarea { background: #FFFFFF; border: 1px solid #E8C86A; }

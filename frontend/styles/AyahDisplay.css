@@ -1,6 +1,0 @@
-.source-ayah-card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #E8DCC8; overflow: hidden; }
-.card-header-banner { background-color: #1B4332; color: #F5F0E8; padding: 12px 25px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; }
-.source-ayah-meta { background: #F5F0E8; padding: 12px 25px; font-size: 13px; font-weight: 600; color: #3D2B1F; border-bottom: 1px solid #E8DCC8; display: flex; gap: 20px; flex-wrap: wrap; }
-.card-body { padding: 30px; text-align: center; }
-.arabic-text { font-size: 40.8px; font-family: 'Amiri', serif; line-height: 2.4; color: #3D2B1F; }
-.loading, .placeholder { text-align: center; padding: 60px 20px; color: #8B7355; font-size: 15px; background: #FFFFFF; border-radius: 12px; border: 1px dashed #E8DCC8; }

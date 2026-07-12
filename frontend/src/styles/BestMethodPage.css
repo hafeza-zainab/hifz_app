@@ -1,0 +1,20 @@
+
+.best-method-page-wrapper { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+.best-method-header { margin-bottom: 40px; border-bottom: 2px solid #F2C94C; padding-bottom: 20px; }
+.best-method-header h1 { color: #004D40; font-size: 32px; margin: 10px 0 5px 0; }
+.best-method-header .subtitle { color: #6B7280; font-size: 18px; margin: 0; font-weight: 600; }
+.back-link { color: #004D40; text-decoration: none; font-weight: 600; font-size: 14px; }
+.back-link:hover { text-decoration: underline; }
+.best-method-content { line-height: 1.8; color: #374151; }
+.best-method-content p { margin-bottom: 20px; font-size: 16px; }
+.method-section { margin-bottom: 40px; }
+.method-section h2 { color: #004D40; font-size: 22px; border-left: 4px solid #004D40; padding-left: 15px; margin-bottom: 20px; }
+.method-section h3 { color: #1F2937; font-size: 18px; margin-bottom: 10px; }
+.method-section ol, .method-section ul { padding-left: 25px; margin-bottom: 20px; }
+.method-section li { margin-bottom: 10px; }
+.highlight-box { background: #F0FDF4; padding: 25px; border-radius: 12px; border: 1px solid #BBF7D0; }
+.highlight-box h2 { border-left-color: #10B981; }
+.assessment-cta { background: #004D40; padding: 40px; border-radius: 12px; text-align: center; margin-top: 50px; }
+.assessment-cta p { color: #E0F2F1; font-size: 17px; margin-bottom: 25px; }
+.cta-button { display: inline-block; background: #F2C94C; color: #004D40; padding: 15px 35px; font-size: 18px; font-weight: 700; border-radius: 8px; text-decoration: none; transition: 0.2s; }
+.cta-button:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(242, 201, 76, 0.4); }
