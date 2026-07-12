@@ -70,12 +70,20 @@ backend/repositories/
 
 **1. Clean Entry-Type Segregation** — Each diary type (murajah, tasmee, ikhtebar, jadeed, juz_hali) has its own controller + service, each calling `diaryRepo.createLog()` with different parameters. Reduces bloat vs. a monolithic controller.
 
-**2. Dual Data Sources for Heatmap (Critical)**
+**2. Dual Data Sources for Heatmap (Tracked Technical Debt)**
 Two separate data sources compute page strength:
 1. `diary_logs` table via `diary.repository.getHeatmapAggregates()` — queries `diary_logs` where `type = 'murajah'` and `range_from LIKE '%Page%'` (lines 188–200); returns `[{page_ref, score, entry_count}]`.
 2. `heatmap_scores` table via `heatmap.repository.getScoresByUser()` — explicit per-page scores (lines 17–26); returns `[{juz, page, score}]`.
 
 **Problem:** these can diverge if diary logs are updated but `heatmap_scores` is not, or if the scheduler and analytics read from different sources. The scheduler (`tmWizard.controller.js:314`) reads from `heatmap_scores`, while diary analytics may show different results from `diary_logs`. This is a genuine data-consistency issue (see Section 11).
+
+**Root cause:** `murajah.service.js` does not pass `start_page`, `start_juz` parameters to `createLog()`, so these structured columns are always NULL for murajah entries. This prevents extending `getHeatmapAggregates()` to provide the numeric `juz` and `page` fields that `tmWizard.controller.js` requires for progress analysis.
+
+**Consolidation path (deferred):**
+1. Update `murajah.service.js` to populate `start_page`, `finish_page`, `start_juz`, `finish_juz` columns on murajah log creation
+2. Create a backfill migration to populate these columns for existing NULL rows (parse `range_from` text)
+3. Extend `getHeatmapAggregates()` to GROUP BY `start_juz`, `start_page` and return numeric `juz`/`page` fields matching the shape `tmWizard.controller.js` expects
+4. Switch all call sites (analytics.controller.js, both tmWizard.controller.js call sites) to use the single canonical diary_logs source
 
 **3. Streak Logic Solid but Date-Dependent**
 `theme.repository.incrementStreak()` (lines 50–70) correctly handles: already logged today (no-op), logged yesterday (streak +1), gap (reset to 1). However:
@@ -125,7 +133,7 @@ Parsing of `page_ref` happens client-side; if the string format changes, the fro
 
 | Finding | Severity | Impact |
 |---------|----------|--------|
-| Dual heatmap data sources (diary_logs vs heatmap_scores) | **Critical** | Data consistency issue, conflicting UI data |
+| Dual heatmap data sources (diary_logs vs heatmap_scores) | **Technical Debt** | Data consistency issue, requires schema backfill before consolidation |
 | Brittle data contract (free-text range_from/range_to) | **Moderate** | Frontend parsing errors, maintenance burden |
 | Timezone-sensitive streak logic | **Moderate** | Potential streak miscalculations across timezones |
 | Compatibility shims (diary.repository.js, theme.model.js) | **Minor** | Tech debt, remove in next cleanup |
@@ -680,3 +688,247 @@ These issues recur across multiple modules and are strong candidates for a singl
 6. **Legacy `.model.js` files superseded by `.repository.js`** — a consistent migration pattern across auth, ayah, tasks, themes, and diary; several are fully dead, two are intentional shims. Worth a single cleanup pass once the auth "missing `updateWalkthroughSeen`" bug (Module 4.2) is fixed, since that bug is a direct symptom of this in-progress migration.
 
 *Modules 9 (frontend shared/), 10 (remaining frontend features), and 11 (full cross-cutting synthesis and proposed architecture) are not yet covered and remain pending.*
+
+---
+
+## 9. Frontend — shared/ (components, context, services, utils)
+
+### Overview
+Shared resources live where expected: `frontend/shared/{components,context,services,utils,data}`. Some primitives are well centralized and reused (`scoreColors.js`, `themeVisuals.js`, `http.js`, per-feature API wrappers), but several cross-cutting utilities and UI primitives flagged in earlier modules either don't exist yet or exist only per-feature. Net result: partial DRY, with real UX/bug risk where features quietly reimplement shared-adjacent logic.
+
+### Dead Files / Dead Exports
+No wholly-dead files found. Minor issue: several shared modules (notably `TourContext`, some services) carry excessive `console.log`/debug traces — not dead code, but noisy.
+
+### UI Consistency
+**Good reuse:**
+- Theme visuals (`THEME_BG`/`THEME_BAR`) centralized in `shared/utils/themeVisuals.js`, consumed by `ThemeBanner` and `ThemeSelector`.
+- `StreakBanner` (shared/components) implemented with careful UTC date handling — a genuinely reusable banner.
+- `ImmersiveView` + hooks (`useCanvasScene`, `useParallax`, scenes) are centralized and consumed by `ThemeBanner`.
+
+**Weaknesses:**
+- **No shared Modal/overlay component or `.modal-overlay` CSS class.** Every feature (Walkthrough, flashcard modals, others) implements its own inline overlay markup/styles, leading to duplicated CSS and inconsistent focus/scroll-lock behavior.
+- **No shared toast/notification component** — features log errors to console instead of surfacing them to the user.
+- `Walkthrough` uses inline styling while `TourContext` drives it via event callbacks — inconsistent presentation, tight coupling.
+- Day-of-week arrays and time utilities (used in scheduler) are still defined per-feature rather than in a shared constants/time-utils location.
+
+**Severity:** Moderate — inconsistent UX and duplicated CSS/behavior across features.
+
+### Architecture
+- Folder layout conforms to the documented `shared/{components,context,services,utils,data}` structure.
+- **`AppContext`** (`shared/context/AppContext.js`) is minimal and well-scoped: holds similarity search state only (`sourceAyah`, `results`, `selectedResult`, `isLoading`, `tips`).
+- **`TourContext`** (`shared/context/TourContext.jsx`) is feature-rich: navigation registration, ~32-step definitions, event dispatching, persistence. It tries to stay backward-compatible (exposes `onResultsFound`/`onResultClicked` callbacks) but couples navigation timing, step sequencing, and page-mount delays directly into the provider.
+- **`http.js`** (`shared/services/http.js`) is the canonical `authFetch` — a genuine single source of truth for API calls and 401 handling.
+- Per-feature API wrappers (`diaryApi`, `flashcardApi`, `coachApi`, `takhteetApi`, etc.) correctly live under `shared/services`.
+- **Missing from `shared/utils`:** date/time utilities, day-of-week constants, pair-key normalization, range-string parsing, shared modal CSS/component — none of these exist yet, despite being needed by multiple features.
+
+**Conclusion:** `shared/` is sensibly organized, but is not yet the single source for several important cross-cutting primitives — features continue to leak feature-specific logic into their own folders.
+
+### Data Flow
+- **AppContext:** clear, contained responsibility (similarity search state only).
+- **TourContext issues:**
+  - Heavy `console.log` throughout (`startTour`, `advanceStep`, `dispatchTourEvent`, state-change logs).
+  - Uses `navigateRef.registerNavigate` plus a fixed 400ms `setTimeout` to wait for page mount before advancing steps — fragile, can desync if mount time varies (slow loads, route guards, lazy-loading).
+  - `dispatchTourEvent` auto-advance uses a 600ms delay to show an action then advance — timing baked into the context rather than coordinated by features, inviting race conditions.
+  - Uses refs (`currentStepRef`, `isActiveRef`) to avoid stale closures — good practice, but combined with the timeouts above, indicates a generally brittle synchronization pattern (consistent with past TourContext debugging work).
+- **`http.js`:** central error normalization + 401 redirect is solid; `diaryApi.addLog` still logs to console on save in non-production — minor debug leakage into a shared service.
+
+**Risk:** Moderate — TourContext timing/navigation coupling can cause missed or duplicated onboarding steps.
+
+### Duplication — Cross-Cutting Primitives Missing from shared/
+Checked directly against patterns flagged in Modules 1–8:
+
+| Cross-cutting need | Status in shared/ | Where it's duplicated instead |
+|---|---|---|
+| Date/timezone utilities | **Missing** | Modules 1, 3, 4, 5, 7 (`.split("T")[0]`, ad-hoc UTC math) |
+| Day-of-week constants & week-start logic | **Missing** | Modules 1, 4, 5 (inconsistent string vs. number conventions) |
+| Streak calculation | Backend duplicated; frontend correctly just consumes a `getStreak` API via `StreakBanner` | Modules 3, 4 (backend only) |
+| Modal overlay / component | **Missing** | Modules 5, 6 (inline overlays, duplicated CSS) |
+| Pair-key / range-string / set-detection parsing | **Missing** | Modules 6, 8 (`detectSetInfo`, pair-key logic) |
+| Time utilities (`timeToMinutes`, `mergeIntervals`) | **Missing** | Module 5 (scheduler) |
+
+**Severity:** High for date/time and day-of-week (these feed real bugs); Moderate for modal overlay and normalization helpers (consistency/maintenance).
+
+### Recommendations (prioritized)
+1. **High priority — create missing shared primitives:**
+   - `frontend/shared/utils/dateUtils.js` — `toISODate`, `parseIsoDate`, `addDaysUTC`, `safeDateCompare` 
+   - `frontend/shared/utils/timeUtils.js` — `timeToMinutes`, `minutesToTime`, `mergeIntervals` 
+   - `frontend/shared/utils/dayConstants.js` — `DAY_NAMES`, `DAYS_OF_WEEK_NUM`, `normalizeDay()` (string ↔ number)
+   - `frontend/shared/utils/pairKey.js` and `rangeParser.js` — centralize pair-key normalization and `range_from`/`range_to` parsing
+2. **High priority — centralize modal UX:** `shared/components/Modal.jsx` + `shared/styles/modal.css` (overlay, focus trap, scroll lock, accessible close); migrate Walkthrough and flashcard modals to it.
+3. **Medium priority — harden TourContext:** remove noisy logging; replace the 400ms `setTimeout` mount-wait with an explicit `registerStepMount(stepId)` handshake; let features signal "action completed" rather than relying on a fixed 600ms auto-advance.
+4. **High priority — consolidate day/week logic:** pick and document a canonical week start (Monday vs. Sunday), migrate scheduler + diary to shared helpers.
+5. **Moderate priority — extract duplicated utilities:** `detectSetInfo()`, pair-key normalization, etc. into `shared/utils`.
+6. **Low–medium priority:** add a `shared/logger.js` (no-op in production) and sweep `console.log` calls, starting with TourContext and `diaryApi`.
+
+### Severity Summary (Module 9)
+
+| Finding | Severity |
+|---|---|
+| Missing centralized date/time and day-of-week utilities | **High** |
+| Modal overlay duplicated & inconsistent | Moderate |
+| TourContext timing/logging fragility | Moderate |
+| Pair-key/range parsing duplication | Moderate |
+| Console.log/debug spam across shared contexts/services | Minor–Moderate |
+
+---
+
+## 10. Frontend — Remaining Features (auth, home, onboarding/tour integration)
+
+### Overview
+Covers `features/auth` (Login, Signup, sensory-profile pages), the Home/dashboard page, and the feature-side integration points for the Tour/onboarding system.
+
+### Dead Files / Dead Exports
+No fully dead files. However, likely **orphaned tour wiring**:
+- `features/auth/pages/Home.jsx` calls `onSensoryProfileTestStarted` and `onSensoryProfileSaved` from `useTour` — neither method appears in `TourContext`'s actual API (which exposes `onResultsFound`, `onResultClicked`, `onSetCreated`, `onSetOpened`, etc.). Likely API mismatch from a partial integration.
+- Home checks `currentStep === 35` and `currentStep === 36` for tour-related UI, but `TourContext` (Module 9) defines roughly a 32-step tour — the step list appears shorter than the indices Home checks against. Suggests stale step indices in Home, or TourContext was changed without updating feature-side checks.
+
+**Severity:** Moderate — orphaned tour wiring risks silently broken onboarding flows.
+
+### UI Consistency
+- **Auth pages** (Login/Signup) correctly reuse shared primitives: call `shared/services/authApi`, use `AuthContext` for login actions. Good separation.
+- **Home/Dashboard:**
+  - Does **not** render the shared `StreakBanner`, despite product docs describing a streak banner on the dashboard.
+  - Implements its own day-of-year calculation for a daily quote (`getDailyQuote()`) instead of using a shared date util — duplicates the date-logic gap flagged in Module 9.
+  - Renders its tour-complete modal with inline styled markup (fixed overlay, large z-index) instead of a shared Modal component — same gap flagged in Module 9, now showing up concretely here.
+- **Tour integration:** `App.js` correctly imports and auto-starts the tour via `startTour`, but the feature-side step checks and inline modals are inconsistent with the Module 9 recommendations.
+
+**Net:** Auth pages reuse shared services/context correctly. Home reimplements UI bits (daily quote, inline modal) and misses reuse of `StreakBanner` and a shared modal.
+
+**Severity:** Moderate.
+
+### Architecture
+- **AuthContext** (`shared/context/AuthContext.js`) is the canonical provider: persists token + username to `localStorage`, exposes `login()`/`logout()`, decodes the JWT to compute expiry and schedules automatic logout via `setTimeout` at expiry. No silent refresh-token flow exists — expiry just triggers logout, and `authFetch` also clears the token and redirects to `/login` on 401.
+- **Home aggregation:** Home.jsx mostly displays dashboard cards plus a local daily quote; it does not appear to fetch the richer aggregated stats (recent diary entries, streak, etc.) described in project docs — either that aggregation lives in smaller child components not reviewed here, or it isn't implemented yet. No evidence Home duplicates *heavy* aggregation logic, which is good — but it does duplicate date logic and modal UI that should be shared.
+- `App.js` auto-starts the tour for new users after a 1500ms timeout — a small timing coupling that can race with lazy-loaded pages.
+
+**Severity:** Low–Moderate (auth architecture is solid; Home's aggregation completeness is unclear).
+
+### Data Flow
+- **Token lifecycle:** stored in `localStorage`; expiry triggers a scheduled logout; any 401 from `http.js` clears the token and does a hard redirect (`window.location.href = '/login'`, bypassing React Router) rather than a soft navigation. No silent reauth — acceptable for a simple app, but abrupt for users with long sessions.
+- **Tour wiring fragility:** the app auto-starts the tour via a fixed 1500ms `setTimeout`; combined with `TourContext`'s string-based page names and `data-tour`-attribute selector targeting (Module 9), this is fragile — slow networks or lazy-loaded routes can mean target elements aren't mounted when the tour tries to advance. Home's out-of-range step checks (35/36) and missing callbacks compound this.
+
+**Severity:** Moderate — timing and selector fragility risk onboarding breakage.
+
+### Duplication
+Checked directly against the Module 9 gaps:
+- **Date formatting:** yes, duplicated — Home's `getDailyQuote()` day-of-year logic, and `App.js` using `.split('T')[0]` again. Neither uses a shared date util (none exists yet).
+- **Day-of-week logic:** not significantly reimplemented here.
+- **Modal overlays:** yes, duplicated — Home's tour-complete modal and Walkthrough both use inline overlay markup instead of a shared Modal.
+- **Positive:** Auth correctly reuses `authApi` and `AuthContext`; Home just doesn't reuse `StreakBanner` despite it existing.
+
+**Severity:** Moderate — date and modal duplication are both cross-cutting concerns already flagged in Module 9.
+
+### Recommendations
+1. Reconcile Tour step numbering: replace hardcoded numeric step checks in Home with named constants exported from TourContext (e.g., `TOUR_STEPS.SENSORY_PROFILE_TEST`); add the missing callbacks to TourContext or remove Home's references to them.
+2. Migrate Home's tour-complete modal (and Walkthrough) to the shared Modal component once built (Module 9, Recommendation 2).
+3. Add `frontend/shared/utils/dateUtils.js` and migrate `Home.getDailyQuote()` and `App.js`'s date checks to it.
+4. Render shared `StreakBanner` in Home if a dashboard streak display is intended.
+5. Replace the `setTimeout`-based tour auto-start/mount-wait with an explicit mount handshake (Module 9, Recommendation 3).
+6. Document the token-expiry behavior (forced re-login, no refresh) or add a refresh-token flow if silent reauth is desired; consider replacing hard `window.location.href` redirects with React Router navigation.
+
+### Severity Summary (Module 10)
+
+| Finding | Severity |
+|---|---|
+| Orphaned/mismatched tour callbacks & step indices | **Moderate** |
+| Inline modal overlays & duplicated day-of-year logic | Moderate |
+| Auth architecture (no refresh-token flow) | Low |
+| Home missing reuse of shared StreakBanner | Minor |
+
+---
+
+## 11. Cross-Cutting Issues & Proposed Architecture (Synthesis)
+
+### Cross-Cutting Issues
+
+| # | Pattern | Appears in | Merged Severity |
+|---|---|---|---|
+| 1 | Date/timezone handling (`.split("T")[0]`, ad-hoc UTC math) | Modules 1, 3, 4, 5, 7, 9, 10 | **High** |
+| 2 | Day-of-week indexing & week-start bugs | Modules 1, 4, 5, 9 | **High** |
+| 3 | Streak calculation duplicated across layers | Modules 3, 4, 9 | Moderate (→High combined with #1) |
+| 4 | Dual/inconsistent heatmap sources (`diary_logs` vs `heatmap_scores`) | Modules 3, 4 | **Critical** |
+| 5 | Modal overlay/dialog duplication | Modules 5, 6, 9, 10 | Moderate |
+| 6 | Pair-key / range-string / set-detection parsing duplication | Modules 6, 8, 9 | Moderate |
+| 7 | Console.log/debug spam | Nearly every module | Low–Moderate |
+| 8 | Legacy `.model.js` → `.repository.js` migration leftovers | Module 4 | Minor–Moderate |
+| 9 | Tour/onboarding fragility (timing, stale step indices, selector brittleness) | Modules 9, 10 | Moderate |
+| 10 | Misc: N+1 fetch patterns, duplicated time-utils (`timeToMinutes`, `mergeIntervals`) | Modules 5, 6 | Minor–Moderate |
+
+### Proposed Architecture (minimal-diff, not a rewrite)
+
+**A. Canonical shared files to add/standardize:**
+- Backend: `backend/utils/dateUtils.js` — `toISODateUTC`, `startOfDayUTC`, `addDaysUTC`, `parseISO` 
+- Frontend:
+  - `frontend/shared/utils/dateUtils.js` — `toISODate`, `dayOfYearIndexUTC`, `formatLocalDateSafe` 
+  - `frontend/shared/utils/timeUtils.js` — `timeToMinutes`, `minutesToTime`, `mergeIntervals` 
+  - `frontend/shared/utils/dayConstants.js` — `DAY_NAMES`, `DAY_NUM`, `normalizeDay()`, `getWeekStart(date, weekStart='mon')` 
+  - `frontend/shared/utils/pairKey.js` — `normalizePairKey(surahA, ayahA, surahB, ayahB)` 
+  - `frontend/shared/utils/rangeParser.js` — `parseRangeRef("Juz 1 Page 15")` → `{juz, page, startPage, endPage}` 
+  - `frontend/shared/components/Modal.jsx` — overlay, focus-trap, esc-to-close, scroll-lock, `data-tour` support
+  - `frontend/shared/logger.js` — no-op in production, leveled logging in dev
+
+**B. Suggested order of adoption (proof-of-concept first, not a big-bang migration):**
+1. **Week 1:** `dateUtils.js` (backend + frontend). Migrate one high-impact consumer first: backend diary streak logic (`theme.repository.incrementStreak`), plus the Diary forms on the frontend. Validate timezone correctness end-to-end before wider rollout.
+2. **Week 2:** `Modal.jsx` + `logger.js`. Migrate Walkthrough and Home's tour-complete dialog.
+3. **Week 3:** `dayConstants.js` + `timeUtils.js`. Migrate the scheduler feature (fixes the Module 5 day-of-week/string-vs-number mismatch and `mergeIntervals` duplication); backend scheduler adopts `backend/utils/dateUtils.js` for its week-start fix.
+4. **Week 4:** `pairKey.js` + `rangeParser.js`. Start with similarity's `SidePanel` pair-key normalization, then flashcards' `detectSetInfo`.
+5. **Ongoing:** sweep remaining `console.log` calls to the shared logger as each feature is touched.
+
+**C. Fix now, independent of the shared-utility refactor:**
+1. **Tasks IDOR** (Module 4) — add `getTaskById` + explicit ownership checks in the task controller (fix already drafted in Module 4).
+2. **Auth `updateWalkthroughSeen` bug** (Module 4) — method is called but not exported from the active `auth.repository.js`; will throw if that route is hit.
+3. **Scheduler day-of-week/week-start bug** (Module 4) — `getWeekStart()` miscalculates for most days; blocking, since the scheduler module is already Critical/unimplemented.
+4. **Tour/Home step-index & callback mismatch** (Modules 9, 10) — reconcile Home's hardcoded step numbers with TourContext's actual step list; add or remove the missing callbacks.
+
+### Overall Severity Distribution
+
+| Severity | Approx. count | Representative examples |
+|---|---|---|
+| **Critical** | 2 | Scheduler ~80% unimplemented; Scheduler week-start bug |
+| **Technical Debt** | 1 | Dual heatmap sources (requires schema backfill) |
+| **Moderate** | ~14 | Date/timezone duplication; Tour/onboarding fragility; Modal duplication; Streak duplication; Pair-key/range parsing duplication; Tasks IDOR |
+| **Minor/Low** | ~22 | Console.log spam; dead `.model.js` shims; duplicated components; misc code-style issues |
+
+*(~39 distinct findings across Modules 1–11; see individual module sections above for full detail.)*
+
+### Closing Recommendations
+1. Apply the five "fix now" items above regardless of refactor timing.
+2. Build `dateUtils` (backend + frontend) first — it's the single highest-leverage shared utility, since date/timezone issues appear in more modules than anything else. Migrate Diary as the proof-of-concept.
+3. Build the shared `Modal` + `logger`, migrate Walkthrough/Home overlays next.
+4. Migrate the scheduler to `dayConstants`/`timeUtils` third.
+5. Once the primitives and their first migrations are validated, do a short follow-up pass re-checking the migrated areas rather than re-auditing the whole repo.
+
+*This completes the 11-module audit.*
+
+---
+
+## Addendum — Dependency Graph Cross-Check (Confirmed Orphan Candidates)
+
+**Source:** a full-repo dependency graph (knip-style) was reviewed after the 11-module audit, showing every file as a node with import/require edges. Files with **zero incoming edges** were cross-checked against the module findings above. A dependency graph is stronger evidence of "unused" than manual reading (it can't miss an import the way a human skim can), but it can still miss dynamic `require()` calls, string-built import paths, or files loaded via non-JS mechanisms — so treat the items below as **confirmed candidates, not certainties**. Verify with a text search for the module/file name before deleting anything.
+
+### New orphan findings (not previously flagged)
+
+| File | Observation | Suggested action |
+|---|---|---|
+| `backend/modules/scheduler/constants/workTypes.js` | No incoming edges anywhere in the graph | Verify unused, then delete — consistent with Module 4's finding that the scheduler's intelligence/planning services are stubs that never got wired to their constants |
+| `backend/modules/scheduler/constants/schedulingRules.js` | Same — isolated | Same as above |
+| `backend/modules/scheduler/constants/revisionMethods.js` | Same — isolated | Same as above |
+| `backend/modules/scheduler/constants/qualityRatings.js` | Same — isolated | Same as above |
+| `backend/modules/coach/groqClient.js` | Isolated; no connection to `chat.routes.js` or the active `prompts/*.js` files | Verify directly — likely leftover from a prior Groq-based coach implementation, since the coach now runs on the Anthropic API |
+| `backend/modules/coach/coach.system-prompt.js` | Isolated, alongside groqClient.js | Same — likely paired leftover from the same earlier implementation |
+| `frontend/src/features/coach/hooks/useCoachChat.js` | Isolated; `useCoachStateMachine.js` and `useCoachSessions.js` show active connections instead | Verify whether this hook predates the state-machine refactor and is now superseded |
+| `frontend/src/features/coach/parsers/useCoachParsers.js` | Isolated, same area as above | Same as above |
+| `frontend/src/shared/components/ImmersiveView/utils/sceneHelpers.js` | Isolated; `canvasUtils.js` and `useCanvasScene.js` show active connections | Possibly an earlier version of the scene-caching logic superseded during the canvas/offscreen-caching optimization work |
+
+### Isolated nodes that are expected, not real findings
+
+These show as disconnected in the graph but are **not dead code** — they're standalone entry points or build artifacts that are invoked directly (via `node`, an npm script, or the build process) rather than imported by other source files, so a static dependency graph will always show them as orphaned:
+
+- All `frontend/build/static/js/*.chunk.js` and `main.*.js` files — build output, not source
+- `backend/migrate.js` — invoked directly as a migration entry point
+- `backend/database/migrations/*.js` — same
+- `backend/scripts/debug/*.js` and `backend/scripts/maintenance/*.js` — standalone scripts run directly via `node` 
+- `knip.js` — the graph tool's own config file
+
+### Recommendation
+Fold the confirmed candidates above into the Module 4 (backend) and Module 9/10 (frontend coach/shared) cleanup pass once the higher-priority "fix now" items are done — this is low-risk, low-effort dead-code removal, not a functional fix, so it can be batched separately from the scheduler/date-utils/modal work already prioritized in Module 11.
