@@ -70,12 +70,20 @@ backend/repositories/
 
 **1. Clean Entry-Type Segregation** — Each diary type (murajah, tasmee, ikhtebar, jadeed, juz_hali) has its own controller + service, each calling `diaryRepo.createLog()` with different parameters. Reduces bloat vs. a monolithic controller.
 
-**2. Dual Data Sources for Heatmap (Critical)**
+**2. Dual Data Sources for Heatmap (Tracked Technical Debt)**
 Two separate data sources compute page strength:
 1. `diary_logs` table via `diary.repository.getHeatmapAggregates()` — queries `diary_logs` where `type = 'murajah'` and `range_from LIKE '%Page%'` (lines 188–200); returns `[{page_ref, score, entry_count}]`.
 2. `heatmap_scores` table via `heatmap.repository.getScoresByUser()` — explicit per-page scores (lines 17–26); returns `[{juz, page, score}]`.
 
 **Problem:** these can diverge if diary logs are updated but `heatmap_scores` is not, or if the scheduler and analytics read from different sources. The scheduler (`tmWizard.controller.js:314`) reads from `heatmap_scores`, while diary analytics may show different results from `diary_logs`. This is a genuine data-consistency issue (see Section 11).
+
+**Root cause:** `murajah.service.js` does not pass `start_page`, `start_juz` parameters to `createLog()`, so these structured columns are always NULL for murajah entries. This prevents extending `getHeatmapAggregates()` to provide the numeric `juz` and `page` fields that `tmWizard.controller.js` requires for progress analysis.
+
+**Consolidation path (deferred):**
+1. Update `murajah.service.js` to populate `start_page`, `finish_page`, `start_juz`, `finish_juz` columns on murajah log creation
+2. Create a backfill migration to populate these columns for existing NULL rows (parse `range_from` text)
+3. Extend `getHeatmapAggregates()` to GROUP BY `start_juz`, `start_page` and return numeric `juz`/`page` fields matching the shape `tmWizard.controller.js` expects
+4. Switch all call sites (analytics.controller.js, both tmWizard.controller.js call sites) to use the single canonical diary_logs source
 
 **3. Streak Logic Solid but Date-Dependent**
 `theme.repository.incrementStreak()` (lines 50–70) correctly handles: already logged today (no-op), logged yesterday (streak +1), gap (reset to 1). However:
@@ -125,7 +133,7 @@ Parsing of `page_ref` happens client-side; if the string format changes, the fro
 
 | Finding | Severity | Impact |
 |---------|----------|--------|
-| Dual heatmap data sources (diary_logs vs heatmap_scores) | **Critical** | Data consistency issue, conflicting UI data |
+| Dual heatmap data sources (diary_logs vs heatmap_scores) | **Technical Debt** | Data consistency issue, requires schema backfill before consolidation |
 | Brittle data contract (free-text range_from/range_to) | **Moderate** | Frontend parsing errors, maintenance burden |
 | Timezone-sensitive streak logic | **Moderate** | Potential streak miscalculations across timezones |
 | Compatibility shims (diary.repository.js, theme.model.js) | **Minor** | Tech debt, remove in next cleanup |
@@ -871,13 +879,13 @@ Checked directly against the Module 9 gaps:
 2. **Auth `updateWalkthroughSeen` bug** (Module 4) — method is called but not exported from the active `auth.repository.js`; will throw if that route is hit.
 3. **Scheduler day-of-week/week-start bug** (Module 4) — `getWeekStart()` miscalculates for most days; blocking, since the scheduler module is already Critical/unimplemented.
 4. **Tour/Home step-index & callback mismatch** (Modules 9, 10) — reconcile Home's hardcoded step numbers with TourContext's actual step list; add or remove the missing callbacks.
-5. **Heatmap source decision** (Modules 3, 4) — decide on a single canonical source (`diary_logs` or `heatmap_scores`), or add an explicit reconciler job plus a health check, rather than leaving both to drift independently.
 
 ### Overall Severity Distribution
 
 | Severity | Approx. count | Representative examples |
 |---|---|---|
-| **Critical** | 3 | Dual heatmap sources; Scheduler ~80% unimplemented; Scheduler week-start bug |
+| **Critical** | 2 | Scheduler ~80% unimplemented; Scheduler week-start bug |
+| **Technical Debt** | 1 | Dual heatmap sources (requires schema backfill) |
 | **Moderate** | ~14 | Date/timezone duplication; Tour/onboarding fragility; Modal duplication; Streak duplication; Pair-key/range parsing duplication; Tasks IDOR |
 | **Minor/Low** | ~22 | Console.log spam; dead `.model.js` shims; duplicated components; misc code-style issues |
 
