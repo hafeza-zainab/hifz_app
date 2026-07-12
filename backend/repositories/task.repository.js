@@ -25,6 +25,13 @@ const getTasksByDate = (userId, date) =>
         [userId, date]
     );
 
+/**
+ * Fetch a task by ID (for ownership verification).
+ * @returns {Promise<{id, user_id, title, category, status, date, created_at}|null>}
+ */
+const getTaskById = (taskId) =>
+    db.get("SELECT * FROM tasks WHERE id = ?", [taskId]);
+
 /** @returns {Promise<{changes: number}>} */
 const updateTaskStatus = (taskId, userId, status) =>
     db.run(
@@ -65,6 +72,7 @@ const getStreakDates = (userId) =>
 module.exports = {
     addTask,
     getTasksByDate,
+    getTaskById,
     updateTaskStatus,
     updateTaskTitle,
     deleteTask,

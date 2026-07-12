@@ -23,6 +23,12 @@ exports.getTasks = async (req, res, next) => {
 
 exports.updateTask = async (req, res, next) => {
     try {
+        const task = await taskRepo.getTaskById(req.params.id);
+        if (!task)
+            return res.status(404).json(formatError("Task not found."));
+        if (task.user_id !== req.user.id)
+            return res.status(403).json(formatError("Forbidden: you do not own this task."));
+
         const result = await taskRepo.updateTaskStatus(req.params.id, req.user.id, req.body.status);
         if (result.changes === 0)
             return res.status(404).json(formatError("Task not found."));
@@ -32,6 +38,12 @@ exports.updateTask = async (req, res, next) => {
 
 exports.editTaskTitle = async (req, res, next) => {
     try {
+        const task = await taskRepo.getTaskById(req.params.id);
+        if (!task)
+            return res.status(404).json(formatError("Task not found."));
+        if (task.user_id !== req.user.id)
+            return res.status(403).json(formatError("Forbidden: you do not own this task."));
+
         const result = await taskRepo.updateTaskTitle(req.params.id, req.user.id, req.body.title.trim());
         if (result.changes === 0)
             return res.status(404).json(formatError("Task not found."));
@@ -41,6 +53,12 @@ exports.editTaskTitle = async (req, res, next) => {
 
 exports.deleteTask = async (req, res, next) => {
     try {
+        const task = await taskRepo.getTaskById(req.params.id);
+        if (!task)
+            return res.status(404).json(formatError("Task not found."));
+        if (task.user_id !== req.user.id)
+            return res.status(403).json(formatError("Forbidden: you do not own this task."));
+
         const result = await taskRepo.deleteTask(req.params.id, req.user.id);
         if (result.changes === 0)
             return res.status(404).json(formatError("Task not found."));
