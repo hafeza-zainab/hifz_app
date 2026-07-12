@@ -72,4 +72,11 @@ const updateSensoryProfile = (id, sensoryProfile) =>
         [sensoryProfile, id]
     );
 
-module.exports = { findByEmail, findByUsername, findById, createUser, updatePassword, updateSensoryProfile };
+/** Update has_seen_walkthrough flag for a user. */
+const updateWalkthroughSeen = (id) =>
+    db.run(
+        "UPDATE users SET has_seen_walkthrough = 1 WHERE id = ?",
+        [id]
+    );
+
+module.exports = { findByEmail, findByUsername, findById, createUser, updatePassword, updateSensoryProfile, updateWalkthroughSeen };
