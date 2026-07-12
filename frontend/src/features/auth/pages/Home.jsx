@@ -9,7 +9,7 @@ import { dailyQuotes } from '../../../shared/data/dailyQuotes';
 const Home = () => {
   const { user } = useAuthContext();
   const navigate = useNavigate();
-  const { isActive, currentStep, completeTour, onSensoryProfileTestStarted, onSensoryProfileSaved, startTour } = useTour();
+  const { isActive, currentStep, completeTour, startTour } = useTour();
 
   // Get today's quote based on day of year
   const getDailyQuote = () => {
@@ -33,15 +33,9 @@ const Home = () => {
     completeTour();
   };
 
-  const handleSensoryProfileTestClick = () => {
-    if (isActive && currentStep === 35) {
-      onSensoryProfileTestStarted();
-    }
-  };
-
   return (
     <div className="home-dashboard-container">
-      {isActive && currentStep === 36 && (
+      {isActive && currentStep === 26 && (
         <div
           style={{
             position: 'fixed',

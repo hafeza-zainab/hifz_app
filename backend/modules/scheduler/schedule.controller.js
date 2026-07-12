@@ -379,8 +379,9 @@ class ScheduleController {
     getWeekStart() {
         const now = new Date();
         const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
-        const monday = new Date(now.setDate(diff));
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(now);
+        monday.setDate(diff);
         monday.setHours(0, 0, 0, 0);
         return Math.floor(monday.getTime() / 1000);
     }
